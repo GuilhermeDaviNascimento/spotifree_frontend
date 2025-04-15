@@ -3,6 +3,7 @@
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
+import { useRouter } from 'next/navigation';
 
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -21,8 +22,32 @@ export default function LoginForm() {
     resolver: zodResolver(loginSchema),
   });
 
-  const onSubmit = (data: LoginFormData) => {
-    console.log('Login data:', data);
+  const router = useRouter();
+
+  const onSubmit = async (data: LoginFormData) => {
+    try {
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/v1/login`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(data),
+      });
+
+      if (!response.ok) {
+        // Lidar com erro da API (ex: 401 ou 500)
+        const errorData = await response.json();
+        console.error('Erro ao fazer login:', errorData);
+        return;
+      }
+
+      const result = await response.json();
+      console.log('Login bem-sucedido:', result);
+      localStorage.setItem('token', result.token);
+      router.push('/');
+    } catch (error) {
+      console.error('Erro inesperado:', error);
+    }
   };
 
   return (
