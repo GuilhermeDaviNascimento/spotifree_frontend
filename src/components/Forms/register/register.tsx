@@ -13,6 +13,9 @@ import { signUpSchema } from './schema';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 
+import { createUserWithEmailAndPassword, updateProfile } from 'firebase/auth';
+import { auth } from '@/lib/firebase'; // Firebase configurado
+
 type SignUpFormData = z.infer<typeof signUpSchema>;
 
 export default function SignUpForm() {
@@ -61,26 +64,29 @@ export default function SignUpForm() {
   }, [cep, setValue, step]);
 
   const onSubmit = async (data: SignUpFormData) => {
+    setErrorMessage('');
     try {
-      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/v1/register`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(data),
+      const userCredential = await createUserWithEmailAndPassword(
+        auth,
+        data.email,
+        data.password
+      );
+
+      // Atualiza nome do usuário no Firebase
+      await updateProfile(userCredential.user, {
+        displayName: data.name,
       });
 
-      if (!response.ok) {
-        const errorData = await response.json();
-        setErrorMessage(errorData?.message || 'Erro ao registrar.');
-        return;
-      }
-
-      // Cadastro bem-sucedido
+      console.log('Usuário registrado com sucesso:', userCredential.user);
       router.push('/login');
-    } catch (error) {
-      console.error('Erro ao enviar os dados:', error);
-      setErrorMessage('Ocorreu um erro inesperado. Tente novamente.');
+    } catch (error: any) {
+      console.error('Erro ao registrar:', error);
+      const msg = error.message || 'Erro inesperado.';
+      if (msg.includes('email-already-in-use')) {
+        setErrorMessage('Este e-mail já está em uso.');
+      } else {
+        setErrorMessage(msg);
+      }
     }
   };
 
@@ -167,8 +173,8 @@ export default function SignUpForm() {
                 placeholder="00000000"
                 {...register('cep')}
                 onInput={(e) => {
-                  const target = e.target as HTMLInputElement; // Fazendo o type assertion
-                  target.value = target.value.replace(/\D/g, ''); // Remove caracteres não numéricos
+                  const target = e.target as HTMLInputElement;
+                  target.value = target.value.replace(/\D/g, '');
                 }}
               />
               {errors.cep && <p className="text-sm text-red-500">{errors.cep.message}</p>}
@@ -244,9 +250,4 @@ export default function SignUpForm() {
               </Button>
               <Button type="submit">Sign Up</Button>
             </div>
-          </>
-        )}
-      </div>
-    </form>
-  );
-}
+         
