@@ -11,6 +11,9 @@ import Link from 'next/link';
 
 import { loginSchema } from './schema';
 
+import { signInWithEmailAndPassword } from 'firebase/auth';
+import { auth } from '@/lib/firebase'; // importa firebase configurado
+
 type LoginFormData = z.infer<typeof loginSchema>;
 
 export default function LoginForm() {
@@ -26,27 +29,18 @@ export default function LoginForm() {
 
   const onSubmit = async (data: LoginFormData) => {
     try {
-      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/v1/login`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(data),
-      });
+      const userCredential = await signInWithEmailAndPassword(auth, data.email, data.password);
+      const user = userCredential.user;
 
-      if (!response.ok) {
-        // Lidar com erro da API (ex: 401 ou 500)
-        const errorData = await response.json();
-        console.error('Erro ao fazer login:', errorData);
-        return;
-      }
+      // Armazenar token se necessário (Firebase cuida da sessão internamente)
+      const token = await user.getIdToken();
+      localStorage.setItem('token', token);
 
-      const result = await response.json();
-      console.log('Login bem-sucedido:', result);
-      localStorage.setItem('token', result.token);
+      console.log('Login bem-sucedido:', user);
       router.push('/');
-    } catch (error) {
-      console.error('Erro inesperado:', error);
+    } catch (error: any) {
+      console.error('Erro ao fazer login:', error.message);
+      // Aqui você pode mostrar erro para o usuário, se quiser
     }
   };
 
