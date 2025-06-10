@@ -1,3 +1,4 @@
+// app/login/page.tsx
 'use client';
 
 import { useForm } from 'react-hook-form';
@@ -13,6 +14,7 @@ import { loginSchema } from './schema';
 
 import { signInWithEmailAndPassword } from 'firebase/auth';
 import { auth } from '@/lib/firebase'; // importa firebase configurado
+import { useState } from 'react';
 
 type LoginFormData = z.infer<typeof loginSchema>;
 
@@ -26,21 +28,31 @@ export default function LoginForm() {
   });
 
   const router = useRouter();
+  const [errorMessage, setErrorMessage] = useState('');
 
   const onSubmit = async (data: LoginFormData) => {
     try {
       const userCredential = await signInWithEmailAndPassword(auth, data.email, data.password);
       const user = userCredential.user;
 
-      // Armazenar token se necessário (Firebase cuida da sessão internamente)
-      const token = await user.getIdToken();
-      localStorage.setItem('token', token);
+      // Opcional: Obtenha o token JWT do usuário
+      // const token = await user.getIdToken();
+      // localStorage.setItem('token', token);
 
       console.log('Login bem-sucedido:', user);
-      router.push('/');
+      router.push('/'); // Redireciona para a página inicial
     } catch (error: any) {
       console.error('Erro ao fazer login:', error.message);
-      // Aqui você pode mostrar erro para o usuário, se quiser
+      if (error.code === 'auth/user-not-found') {
+        setErrorMessage('Usuário não encontrado.');
+      } else if (error.code === 'auth/wrong-password') {
+        setErrorMessage('Senha incorreta.');
+      } else if (error.code === 'auth/invalid-email') {
+        setErrorMessage('Email inválido.');
+      }
+       else {
+        setErrorMessage('Ocorreu um erro inesperado. Tente novamente.');
+      }
     }
   };
 
@@ -65,6 +77,10 @@ export default function LoginForm() {
           Welcome back! Please log in to your account.
         </p>
       </div>
+
+      {errorMessage && (
+        <p className="text-sm text-red-500 font-medium text-center">{errorMessage}</p>
+      )}
 
       <div className="flex flex-col gap-5">
         <div>

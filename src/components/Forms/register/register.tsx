@@ -1,3 +1,4 @@
+// app/register/page.tsx
 'use client';
 
 import { useEffect, useState } from 'react';
@@ -12,9 +13,7 @@ import { Label } from '@/components/ui/label';
 import { signUpSchema } from './schema';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-
-import { createUserWithEmailAndPassword, updateProfile } from 'firebase/auth';
-import { auth } from '@/lib/firebase'; // Firebase configurado
+import { auth, db, createUserWithEmailAndPassword, setDoc, doc } from '@/lib/firebase';
 
 type SignUpFormData = z.infer<typeof signUpSchema>;
 
@@ -51,10 +50,24 @@ export default function SignUpForm() {
             setValue('bairro', data.bairro);
             setValue('municipio', data.localidade);
             setValue('uf', data.uf);
+          } else {
+            console.error('CEP não encontrado:', data.erro);
+            setErrorMessage('CEP não encontrado.');
+            setValue('logradouro', '');
+            setValue('bairro', '');
+            setValue('municipio', '');
+            setValue('uf', '');
           }
         } catch (error) {
           console.error('Erro ao buscar endereço:', error);
+          setErrorMessage('Erro ao buscar endereço. Verifique sua conexão.');
         }
+      } else if (cleanedCep?.length > 0) {
+        setErrorMessage('CEP deve ter 8 dígitos.');
+        setValue('logradouro', '');
+        setValue('bairro', '');
+        setValue('municipio', '');
+        setValue('uf', '');
       }
     };
 
@@ -64,28 +77,33 @@ export default function SignUpForm() {
   }, [cep, setValue, step]);
 
   const onSubmit = async (data: SignUpFormData) => {
-    setErrorMessage('');
     try {
-      const userCredential = await createUserWithEmailAndPassword(
-        auth,
-        data.email,
-        data.password
-      );
+      const userCredential = await createUserWithEmailAndPassword(auth, data.email, data.password);
+      const user = userCredential.user;
 
-      // Atualiza nome do usuário no Firebase
-      await updateProfile(userCredential.user, {
-        displayName: data.name,
+      await setDoc(doc(db, 'users', user.uid), {
+        name: data.name,
+        email: data.email,
+        cep: data.cep,
+        logradouro: data.logradouro,
+        bairro: data.bairro,
+        municipio: data.municipio,
+        uf: data.uf,
+        numero: data.numero,
+        complemento: data.complemento,
       });
 
-      console.log('Usuário registrado com sucesso:', userCredential.user);
       router.push('/login');
     } catch (error: any) {
-      console.error('Erro ao registrar:', error);
-      const msg = error.message || 'Erro inesperado.';
-      if (msg.includes('email-already-in-use')) {
-        setErrorMessage('Este e-mail já está em uso.');
+      console.error('Erro ao criar usuário:', error);
+      if (error.code === 'auth/email-already-in-use') {
+        setErrorMessage('Este email já está em uso.');
+      } else if (error.code === 'auth/invalid-email') {
+        setErrorMessage('Email inválido.');
+      } else if (error.code === 'auth/weak-password') {
+        setErrorMessage('Senha muito fraca.');
       } else {
-        setErrorMessage(msg);
+        setErrorMessage('Ocorreu um erro inesperado. Tente novamente.');
       }
     }
   };
@@ -250,4 +268,9 @@ export default function SignUpForm() {
               </Button>
               <Button type="submit">Sign Up</Button>
             </div>
-         
+          </>
+        )}
+      </div>
+    </form>
+  );
+}

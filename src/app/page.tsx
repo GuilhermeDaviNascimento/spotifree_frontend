@@ -2,58 +2,51 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { getAuth, onAuthStateChanged } from 'firebase/auth';
+import { collection, getDocs } from 'firebase/firestore';
+import { db } from '@/lib/firebase'; // Importando a configuração do Firebase
 
 interface Users {
-  id: number
-  name: string
-  email: string
+  id: number;
+  name: string;
+  email: string;
 }
 
 export default function Home() {
   const [users, setUsers] = useState<Users[]>([]);
   const [loading, setLoading] = useState(true);
   const router = useRouter();
+  const auth = getAuth();
 
   useEffect(() => {
-    const token = localStorage.getItem('token');
+    // Verifica se o usuário está autenticado com o Firebase Auth
+    const unsubscribe = onAuthStateChanged(auth, async (user) => {
+      if (!user) {
+        // Se não estiver autenticado, redireciona para o registro
+        router.push('/register');
+        return;
+      }
 
-    // Se não houver token, redireciona para a página de registro
-    if (!token) {
-      router.push('/register');
-      return;
-    }
+      try {
+        // Buscar usuários do Firestore
+        const usersCollection = collection(db, 'users');
+        const usersSnapshot = await getDocs(usersCollection);
+        const usersList = usersSnapshot.docs.map((doc) => ({
+          id: doc.id,
+          ...doc.data(),
+        }));
 
-    fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/v1/users/`, {
-      method: 'GET',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `${token}`,
-      },
-    })
-      .then((res) => {
-        if (res.status === 401) {
-          // Token inválido ou expirado
-          router.push('/register');
-          return;
-        }
-
-        if (!res.ok) {
-          throw new Error('Erro na resposta da rede');
-        }
-
-        return res.json();
-      })
-      .then((data) => {
-        if (data) {
-          setUsers(data);
-        }
+        setUsers(usersList as unknown as Users[]);
         setLoading(false);
-      })
-      .catch((err) => {
+      } catch (err) {
         console.error('Erro ao buscar usuários:', err);
         setLoading(false);
-      });
-  }, [router]);
+      }
+    });
+
+    // Cleanup quando o componente for desmontado
+    return () => unsubscribe();
+  }, [auth, router]);
 
   if (loading) {
     return <div className="p-4">Carregando usuários...</div>;
